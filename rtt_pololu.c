@@ -6,7 +6,7 @@
  * Ryan Trosvig (3-1-2015)
  * MSSE Lab 1: 
  * 
- * 
+ * Processor speed is 20MHz
  *
  */
  
@@ -41,13 +41,14 @@ uint16_t timer1_top = 50000;
 uint16_t timer1_divisor = 2;
 unsigned long tickCnt1 = 0;
 unsigned long tickCnt2 = 0;
+unsigned long timeAdjust = 0;
 
 // send_buffer: A buffer for sending bytes on USB_COMM.
 char send_buffer[32];
 
 // Macro for 10ms hard timer
 uint32_t __ii;
-#define COUNTS_10MS 17590
+#define COUNTS_10MS 17700
 #define WAIT_10MS {for(__ii=0; __ii < COUNTS_10MS; __ii++);}
 
 // Function prototypes
@@ -61,7 +62,7 @@ void process_received_byte(char byte);
 void setup_timer(void);
 void enable_interrupts(int enable);
 void update_timer1(void);
-
+void blink_red_led_at_1hz(void);
 
 int main()
 {
@@ -86,24 +87,40 @@ int main()
     led_two(0);
     
     // Setup the timer and enable interrupts
-    setup_timer();
-    enable_interrupts(1);
+    //setup_timer();
+    //enable_interrupts(1);
     
     while(1)
     {
+        /*int i = 0;
+        int oneSecCnt = 150;
         // Test loop timing for 10ms
         tickCnt1 = get_ticks();
-        WAIT_10MS;
+        for(i = 0; i < 1; i++);
+        toggle_led_one();
+        tickCnt2 = get_ticks();
+        timeAdjust = tickCnt2 - tickCnt1;
+        tickCnt1 = get_ticks();
+        for(i = 0; i < oneSecCnt; i++)
+            WAIT_10MS;
         tickCnt2 = get_ticks();  
-        snprintf(send_buffer, 32, "Time %lu us\r\n", ticks_to_microseconds(tickCnt2-tickCnt1));
+        snprintf(send_buffer, 32, "Time %lu us, %d loops\r\n", 
+                ticks_to_microseconds(tickCnt2-tickCnt1), oneSecCnt);
         serial_send(USB_COMM, send_buffer, 32);
+        wait_for_sending_to_finish();
+        snprintf(send_buffer, 32, "Adjust %lu us\r\n", 
+                ticks_to_microseconds(timeAdjust));
+        serial_send(USB_COMM, send_buffer, 32);
+        wait_for_sending_to_finish();*/
+        
+        blink_red_led_at_1hz();
         
         // USB_COMM is always in SERIAL_CHECK mode, so we need to call this
         // function often to make sure serial receptions and transmissions
         // occur.
         serial_check();
         unsigned char button = get_single_debounced_button_press(ANY_BUTTON);
-        
+/*        
         if(button == BUTTON_A)
         {
             if(sw1Blink == 1)
@@ -159,11 +176,61 @@ int main()
                 sw2Timer = get_ms() + sw2TimeOut;
             }
         }
-
+*/
         // Deal with any new bytes received.
         check_for_new_bytes_received();
 
     }
+}
+
+
+void blink_red_led_at_1hz(void)
+{
+    int j = 0;
+    int oneSecCnt = 150;
+    unsigned long tickCnt3 = 0;
+    unsigned long tickCnt4 = 0;
+    // Test loop timing for 10ms
+    tickCnt1 = get_ticks();
+    WAIT_10MS;
+    tickCnt2 = get_ticks();  
+    toggle_led_one();
+    for(j = 0; j < oneSecCnt; j++)
+        {WAIT_10MS;}
+    tickCnt3 = get_ticks(); 
+    toggle_led_one();
+    for(j = 0; j < oneSecCnt; j++)
+        {WAIT_10MS;}
+    tickCnt4 = get_ticks(); 
+    toggle_led_one();
+    snprintf(send_buffer, 32, "10ms: %luus\r\n", 
+            ticks_to_microseconds(tickCnt2-tickCnt1));
+    serial_send(USB_COMM, send_buffer, 32);
+    wait_for_sending_to_finish();
+    snprintf(send_buffer, 32, "1s: %luus, %luus\r\n", 
+            ticks_to_microseconds(tickCnt3-tickCnt2),
+            ticks_to_microseconds(tickCnt4-tickCnt3));
+    serial_send(USB_COMM, send_buffer, 32);
+    wait_for_sending_to_finish();
+    
+    // Test loop timing for 10ms
+    tickCnt1 = get_ticks();
+    for(j = 0; j < 1; j++);
+    toggle_led_one();
+    tickCnt2 = get_ticks();
+    timeAdjust = tickCnt2 - tickCnt1;
+    tickCnt1 = get_ticks();
+    for(j = 0; j < oneSecCnt; j++)
+        {WAIT_10MS;}
+    tickCnt2 = get_ticks();  
+    snprintf(send_buffer, 32, "Time %lu us, %d loops\r\n", 
+            ticks_to_microseconds(tickCnt2-tickCnt1), oneSecCnt);
+    serial_send(USB_COMM, send_buffer, 32);
+    wait_for_sending_to_finish();
+    snprintf(send_buffer, 32, "Adjust %lu us\r\n", 
+            ticks_to_microseconds(timeAdjust));
+    serial_send(USB_COMM, send_buffer, 32);
+    wait_for_sending_to_finish();
 }
 
 void led_one(int value)
@@ -312,6 +379,8 @@ void check_for_new_bytes_received()
 
 void setup_timer(void)
 {
+    // Setup timer 0 for a 1ms tick time
+    // 20MHz / 
     // 0x80 COM0A1: Clear OC0A on Compare Match
     // 0x02 WGM01: CTC
     TCCR0A = 0x82;
