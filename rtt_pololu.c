@@ -13,12 +13,14 @@
  // Enable or disable debug output
  #define DEBUG 0
  
+ #define BUFFER_LEN 32
+ 
 // receive_buffer: A ring buffer that we will use to receive bytes on USB_COMM.
 // The OrangutanSerial library will put received bytes in to
 // the buffer starting at the beginning (receiveBuffer[0]).
 // After the buffer has been filled, the library will automatically
 // start over at the beginning.
-char receive_buffer[32];
+char receive_buffer[BUFFER_LEN];
 
 // receive_buffer_position: This variable will keep track of which bytes in the receive buffer
 // we have already processed.  It is the offset (0-31) of the next byte
@@ -44,11 +46,11 @@ unsigned long tickCnt2 = 0;
 unsigned long timeAdjust = 0;
 
 // send_buffer: A buffer for sending bytes on USB_COMM.
-char send_buffer[32];
+char send_buffer[BUFFER_LEN];
 
 // Macro for 10ms hard timer
-uint32_t __ii;
-#define COUNTS_10MS 17700
+volatile uint32_t __ii;
+#define COUNTS_10MS 5565
 #define WAIT_10MS {for(__ii=0; __ii < COUNTS_10MS; __ii++);}
 
 // Function prototypes
@@ -63,6 +65,7 @@ void setup_timer(void);
 void enable_interrupts(int enable);
 void update_timer1(void);
 void blink_red_led_at_1hz(void);
+void clear_comm_buffer(void);
 
 int main()
 {
@@ -92,26 +95,6 @@ int main()
     
     while(1)
     {
-        /*int i = 0;
-        int oneSecCnt = 150;
-        // Test loop timing for 10ms
-        tickCnt1 = get_ticks();
-        for(i = 0; i < 1; i++);
-        toggle_led_one();
-        tickCnt2 = get_ticks();
-        timeAdjust = tickCnt2 - tickCnt1;
-        tickCnt1 = get_ticks();
-        for(i = 0; i < oneSecCnt; i++)
-            WAIT_10MS;
-        tickCnt2 = get_ticks();  
-        snprintf(send_buffer, 32, "Time %lu us, %d loops\r\n", 
-                ticks_to_microseconds(tickCnt2-tickCnt1), oneSecCnt);
-        serial_send(USB_COMM, send_buffer, 32);
-        wait_for_sending_to_finish();
-        snprintf(send_buffer, 32, "Adjust %lu us\r\n", 
-                ticks_to_microseconds(timeAdjust));
-        serial_send(USB_COMM, send_buffer, 32);
-        wait_for_sending_to_finish();*/
         
         blink_red_led_at_1hz();
         
@@ -183,13 +166,24 @@ int main()
     }
 }
 
+void clear_comm_buffer(void)
+{
+    volatile int i = 0;
+    for(i =0; i < BUFFER_LEN; i++)
+        send_buffer[i] = 0;
+}
 
 void blink_red_led_at_1hz(void)
 {
-    int j = 0;
-    int oneSecCnt = 150;
+    volatile int j = 0;
+    int oneSecCnt = 100;
     unsigned long tickCnt3 = 0;
     unsigned long tickCnt4 = 0;
+    // Test overhead timing
+    tickCnt1 = get_ticks();
+    for(j = 0; j < 1; j++);
+    tickCnt2 = get_ticks();
+    timeAdjust = tickCnt2 - tickCnt1;
     // Test loop timing for 10ms
     tickCnt1 = get_ticks();
     WAIT_10MS;
@@ -202,33 +196,12 @@ void blink_red_led_at_1hz(void)
     for(j = 0; j < oneSecCnt; j++)
         {WAIT_10MS;}
     tickCnt4 = get_ticks(); 
-    toggle_led_one();
-    snprintf(send_buffer, 32, "10ms: %luus\r\n", 
-            ticks_to_microseconds(tickCnt2-tickCnt1));
-    serial_send(USB_COMM, send_buffer, 32);
-    wait_for_sending_to_finish();
-    snprintf(send_buffer, 32, "1s: %luus, %luus\r\n", 
-            ticks_to_microseconds(tickCnt3-tickCnt2),
-            ticks_to_microseconds(tickCnt4-tickCnt3));
-    serial_send(USB_COMM, send_buffer, 32);
-    wait_for_sending_to_finish();
     
-    // Test loop timing for 10ms
-    tickCnt1 = get_ticks();
-    for(j = 0; j < 1; j++);
-    toggle_led_one();
-    tickCnt2 = get_ticks();
-    timeAdjust = tickCnt2 - tickCnt1;
-    tickCnt1 = get_ticks();
-    for(j = 0; j < oneSecCnt; j++)
-        {WAIT_10MS;}
-    tickCnt2 = get_ticks();  
-    snprintf(send_buffer, 32, "Time %lu us, %d loops\r\n", 
-            ticks_to_microseconds(tickCnt2-tickCnt1), oneSecCnt);
-    serial_send(USB_COMM, send_buffer, 32);
-    wait_for_sending_to_finish();
-    snprintf(send_buffer, 32, "Adjust %lu us\r\n", 
-            ticks_to_microseconds(timeAdjust));
+    // Send out a serial message to indicate the timing
+    clear_comm_buffer();
+    snprintf(send_buffer, 32, "10ms: %luus, 1s: %luus\r\n", 
+            ticks_to_microseconds(tickCnt2-tickCnt1-timeAdjust),
+            ticks_to_microseconds(tickCnt3-tickCnt2));
     serial_send(USB_COMM, send_buffer, 32);
     wait_for_sending_to_finish();
 }
